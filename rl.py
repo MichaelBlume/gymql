@@ -102,7 +102,7 @@ class TrainingEnvironment(object):
     save_things = False
     num_steppers = 16
     study_repeats = 32
-    transitions_to_keep = 1000 * 1000
+    transitions_to_keep = 1024 * 1024
     discount_rate = 0.95
     frames_same = 3
 
