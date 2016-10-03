@@ -5,6 +5,7 @@ import gym
 from collections import namedtuple
 import random
 import os
+import h5py
 
 FRAMES_PER_STATE=4
 
@@ -49,6 +50,43 @@ def down_sample(s):
 
 Transition = namedtuple('Transition', 'begin action reward end')
 
+class TransitionTable(object):
+    def __init__(self, f, prefix, size):
+        self.size = size + 1
+        self.starts = f.create_dataset('%s_starts' % prefix, (self.size, 105, 80, 4), dtype=np.uint8)
+        self.actions = f.create_dataset('%s_actions' % prefix, (self.size,), dtype=np.uint8)
+        self.rewards = f.create_dataset('%s_rewards' % prefix, (self.size,), dtype=np.int8)
+        self.write_ind = 0
+        self.full = False
+
+    def count(self):
+        if self.full:
+            return self.size - 1
+        else:
+            return max(self.write_ind - 1, 0)
+
+    def insert(self, start, action, reward):
+        self.starts[self.write_ind] = start
+        self.actions[self.write_ind] = action
+        self.rewards[self.write_ind] = reward
+        self.write_ind += 1
+        if self.write_ind == self.size:
+            self.full = True
+            self.write_ind = 0
+
+    def ignored_index(self):
+        return (self.write_ind - 1) % self.size
+
+    def sample(self, n):
+        selections = np.random.choice(self.count(), min(n, self.count()), replace=False)
+        shifted_selections = sorted([(i+1) % self.size if i >= self.ignored_index() else i for i in selections])
+        end_selections = sorted([(i+1) % self.size for i in shifted_selections])
+        return Transition(
+                self.starts[shifted_selections],
+                self.actions[shifted_selections],
+                self.rewards[shifted_selections],
+                self.starts[end_selections])
+
 blank_frames = [np.empty([105, 80], dtype=np.uint8) for i in range(FRAMES_PER_STATE - 1)]
 for b in blank_frames:
     b.fill(0)
@@ -67,11 +105,12 @@ def sgn(x):
     return 0
 
 class Stepper(object):
-    def __init__(self, game, frames_same):
+    def __init__(self, game, frames_same, table):
         self.env = gym.make(game)
         self.frames = reset_env(self.env)
         self.last_state = stack_frames(self.frames)
         self.frames_same = frames_same
+        self.transition_table = table
 
     def step(self, action=None, render=False):
         if action is None:
@@ -92,7 +131,7 @@ class Stepper(object):
         else:
             self.frames[:-FRAMES_PER_STATE] = []
         self.last_state = stack_frames(self.frames)
-        return Transition(old_state, action, total_reward, self.last_state)
+        self.transition_table.insert(old_state, action, total_reward)
 
 class TrainingEnvironment(object):
     saves_dir = 'saves'
@@ -106,16 +145,19 @@ class TrainingEnvironment(object):
     discount_rate = 0.95
     frames_same = 3
 
-    def __init__(self, game, save_name, **kwargs):
+    def __init__(self, game, save_name, swap_path, **kwargs):
         # you can set arbitrary hyperparameters
         for k, v in kwargs.items():
             if getattr(self, k, None) is None:
                 raise ValueError('undefined param %s' % k)
             setattr(self, k, v)
         self.batch_size = self.num_steppers * self.study_repeats
-        self.steppers = [Stepper(game, self.frames_same) for i in range(self.num_steppers)]
+        self.swap_file = h5py.File('%s/%s' % (swap_path, save_name))
+        self.tables = [TransitionTable(
+            self.swap_file, '%d_' % i, self.transitions_to_keep // self.num_steppers)
+            for i in range(self.num_steppers)]
+        self.steppers = [Stepper(game, self.frames_same, t) for i,t in enumerate(self.tables)]
         self.num_outputs = self.steppers[0].env.action_space.n
-        self.transitions = []
         self.session = tf.Session()
         with self.session:
             self.make_network()
@@ -128,9 +170,16 @@ class TrainingEnvironment(object):
         else:
             self.session.run(tf.initialize_all_variables())
 
-    def sample_transitions(self, transitions):
-        n = min(len(transitions), self.batch_size)
-        return random.sample(transitions, n)
+    def sample_transitions(self):
+        samples = [table.sample(self.study_repeats) for table in self.tables if
+                table.count() > 0]
+        if not samples:
+            return
+        return Transition(
+                begin=np.concatenate([s.begin for s in samples]),
+                action=np.concatenate([s.action for s in samples]),
+                reward=np.concatenate([s.reward for s in samples]),
+                end=np.concatenate([s.end for s in samples]))
 
     def make_network(self):
         inputs = tf.placeholder(tf.float32, [None, 105, 80, FRAMES_PER_STATE])
@@ -178,19 +227,18 @@ class TrainingEnvironment(object):
 
     def train(self):
 #        begin, action, reward, end
-        transitions = self.sample_transitions(self.transitions)
+        transitions = self.sample_transitions()
         if not transitions:
-            # Won't happen
             return
         final_Qs = self.session.run(self.max_Q,
-                {self.inputs: [t.end for t in transitions]})
-        total_Qs = [q * self.discount_rate + t.reward
-                for q, t in zip(final_Qs, transitions)]
+                {self.inputs: transitions.end})
+        total_Qs = [q * self.discount_rate + r
+                for q, r in zip(final_Qs, transitions.reward)]
         _, summaries, step, predictedQ = self.session.run(
                 [self.opt, self.summaries, self.global_step, self.Qs_taken],
-                {self.inputs: [t.begin for t in transitions],
+                {self.inputs: transitions.begin,
                  self.epsilon_var: self.epsilon,
-                 self.actions_taken: [t.action for t in transitions],
+                 self.actions_taken: transitions.action,
                  self.Qs_observed: total_Qs})
 #       print('final')
 #       print(final_Qs[:10])
@@ -211,14 +259,13 @@ class TrainingEnvironment(object):
         rand_steppers = [s for r, s in paired_steppers if r < self.epsilon]
         determ_steppers = [s for r, s in paired_steppers if r >= self.epsilon]
         for s in rand_steppers:
-            self.transitions.append(s.step())
+            s.step()
         if determ_steppers:
             states = [s.last_state for s in determ_steppers]
             actions = self.choose_actions(states)
             for s, a in zip(determ_steppers, actions):
-                self.transitions.append(s.step(a))
+                s.step(a)
         self.train()
-        self.transitions[:-self.transitions_to_keep] = []
 
     def run(self, n):
         for i in range(n):
