@@ -1,3 +1,5 @@
+# An attempt to replicate https://www.cs.toronto.edu/~vmnih/docs/dqn.pdf
+
 from __future__ import print_function, division
 import tensorflow as tf
 import numpy as np
