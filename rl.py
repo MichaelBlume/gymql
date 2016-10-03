@@ -137,7 +137,7 @@ class TrainingEnvironment(object):
     saves_dir = 'saves'
     epsilon = 1
     epsilon_drop = 0.01
-    epsilon_drop_every_frames = 100 * 1000
+    epsilon_drop_every_frames = 10 * 1000
     save_things = True
     num_steppers = 16
     study_repeats = 32
@@ -249,7 +249,7 @@ class TrainingEnvironment(object):
         self.summary_writer.add_summary(summaries, step)
 
         # Do some occasional stuff. Do it here because we know what step it is
-        if step % (self.epsilon_drop_every_frames // self.num_steppers) == 0:
+        if self.epsilon > 0.1 and step % (self.epsilon_drop_every_frames // self.num_steppers) == 0:
             self.epsilon -= self.epsilon_drop
         if self.save_things and step % 10000 == 0:
             self.saver.save(self.session, self.save_path)
