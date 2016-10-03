@@ -99,7 +99,7 @@ class TrainingEnvironment(object):
     epsilon = 1
     epsilon_drop = 0.01
     epsilon_drop_every_frames = 100 * 1000
-    save_things = False
+    save_things = True
     num_steppers = 16
     study_repeats = 32
     transitions_to_keep = 1024 * 1024
