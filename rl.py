@@ -166,6 +166,7 @@ class TrainingEnvironment(object):
     transitions_to_keep = 1024 * 1024
     discount_rate = 0.95
     frames_same = 3
+    train_every = 16
 
     def __init__(self, game, save_name, swap_path, **kwargs):
         # you can set arbitrary hyperparameters
@@ -192,7 +193,7 @@ class TrainingEnvironment(object):
             self.session.run(tf.initialize_all_variables())
 
     def sample_transitions(self):
-        samples = [table.sample(self.study_repeats) for table in self.tables if
+        samples = [table.sample(self.study_repeats * self.train_every) for table in self.tables if
                 table.count() > 0]
         if not samples:
             return
@@ -299,8 +300,9 @@ class TrainingEnvironment(object):
             actions = self.choose_actions(states)
             for s, a in zip(determ_steppers, actions):
                 s.step(a)
-        self.train()
 
     def run(self, n):
         for i in range(n):
             self.step()
+            if i % self.train_every == 0:
+                self.train()
