@@ -162,7 +162,7 @@ class TrainingEnvironment(object):
     epsilon_drop_every_frames = 10 * 1000
     save_things = True
     num_steppers = 16
-    study_repeats = 32
+    study_repeats = 8
     transitions_to_keep = 1024 * 1024
     discount_rate = 0.95
     frames_same = 3
