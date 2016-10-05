@@ -29,7 +29,10 @@ def bias_variable(*shape):
 def ident_none(f):
     return (lambda x: x) if f is None else f
 
-def conv_layer(x, window, out_channels, stride, nonlin = tf.nn.relu):
+def lrelu(t):
+    return tf.maximum(t, 0.1 * t)
+
+def conv_layer(x, window, out_channels, stride, nonlin = lrelu):
     nonlin = ident_none(nonlin)
     in_channels = x.get_shape()[3].value
     W_conv = weight_variable(window, window, in_channels, out_channels)
@@ -47,7 +50,7 @@ def flatten(x):
     dim = product(d.value for d in x.get_shape()[1:])
     return tf.reshape(x, [-1, dim])
 
-def fcl(x, size, nonlin = tf.nn.relu):
+def fcl(x, size, nonlin = lrelu):
     nonlin = ident_none(nonlin)
     W = weight_variable(x.get_shape()[1].value, size)
     b = bias_variable(size)
