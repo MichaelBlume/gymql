@@ -11,6 +11,12 @@ import h5py
 
 FRAMES_PER_STATE=4
 
+def reduce_stdev(t):
+    m = tf.reduce_mean(t)
+    return tf.reduce_mean(tf.square(t - m))
+
+def explained_variance(t, p):
+    return 1 - reduce_stdev(t - p) / reduce_stdev(t)
 
 def weight_variable(*shape):
     initial = tf.truncated_normal(shape, stddev=0.01)
@@ -211,6 +217,10 @@ class TrainingEnvironment(object):
 
         self.epsilon_var = tf.placeholder(tf.float32)
         tf.scalar_summary('epsilon', self.epsilon_var)
+
+        tf.scalar_summary('explained_variance', explained_variance(Qs_observed,
+            Qs_taken))
+
 
         self.inputs = inputs
         self.best_action = best_action
