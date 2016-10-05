@@ -61,11 +61,19 @@ Transition = namedtuple('Transition', 'begin action reward end')
 class TransitionTable(object):
     def __init__(self, f, prefix, size):
         self.size = size + 1
-        self.starts = f.create_dataset('%s_starts' % prefix, (self.size, 105, 80, 4), dtype=np.uint8)
-        self.actions = f.create_dataset('%s_actions' % prefix, (self.size,), dtype=np.uint8)
-        self.rewards = f.create_dataset('%s_rewards' % prefix, (self.size,), dtype=np.int8)
-        self.write_ind = 0
-        self.full = False
+        self.starts = f.require_dataset('%s_starts' % prefix, (self.size, 105, 80, 4), dtype=np.uint8)
+        self.actions = f.require_dataset('%s_actions' % prefix, (self.size,), dtype=np.uint8)
+        self.rewards = f.require_dataset('%s_rewards' % prefix, (self.size,), dtype=np.int8)
+        self.write_ind_var = f.require_dataset('%s_write_ind' % prefix, (1,),
+                dtype=np.uint32)
+        self.full_var = f.require_dataset('%s_full' % prefix, (1,),
+                dtype=np.bool)
+        self.write_ind = self.write_ind_var[0]
+        self.full = self.full_var[0]
+
+    def save(self):
+        self.write_ind_var[0] = self.write_ind
+        self.full_var[0] = self.full
 
     def count(self):
         if self.full:
@@ -263,7 +271,12 @@ class TrainingEnvironment(object):
         if self.epsilon > 0.1 and step % (self.epsilon_drop_every_frames // self.num_steppers) == 0:
             self.epsilon -= self.epsilon_drop
         if self.save_things and step % 10000 == 0:
-            self.saver.save(self.session, self.save_path)
+            self.save()
+
+    def save(self):
+        [t.save() for t in self.tables]
+        self.saver.save(self.session, self.save_path)
+
 
     def step(self):
         paired_steppers = [(random.random(), s) for s in self.steppers]
