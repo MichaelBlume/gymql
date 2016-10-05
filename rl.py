@@ -149,6 +149,12 @@ class Stepper(object):
         self.last_state = stack_frames(self.frames)
         self.transition_table.insert(old_state, action, total_reward)
 
+def count_dead(name, t):
+    zero = tf.equal(t, 0)
+    all_zero = tf.reduce_all(zero, 0)
+    zero_as_ones = tf.cast(all_zero, tf.float32)
+    tf.scalar_summary('%s_dead' % name, tf.reduce_sum(zero_as_ones))
+
 class TrainingEnvironment(object):
     saves_dir = 'saves'
     epsilon = 1
@@ -205,6 +211,10 @@ class TrainingEnvironment(object):
         Q_vals = fcl(h_fc, self.num_outputs, None)
         best_action = tf.argmax(Q_vals, dimension=1)
         actions_taken = tf.placeholder(tf.uint8, [None])
+
+        count_dead('conv1', h_conv1)
+        count_dead('conv2', h_conv2)
+        count_dead('fc', h_fc)
 
         # This is ugly
         actions_hot = tf.one_hot(actions_taken, self.num_outputs)
