@@ -19,11 +19,11 @@ def explained_variance(t, p):
     return 1 - reduce_stdev(t - p) / reduce_stdev(t)
 
 def weight_variable(*shape):
-    initial = tf.truncated_normal(shape, stddev=0.01)
+    initial = tf.truncated_normal(shape, stddev=0.1)
     return tf.Variable(initial)
 
 def bias_variable(*shape):
-    initial = tf.constant(0.0, shape=shape)
+    initial = tf.constant(0.1, shape=shape)
     return tf.Variable(initial)
 
 def ident_none(f):
