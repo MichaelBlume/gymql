@@ -98,7 +98,7 @@ class TransitionTable(object):
 
     def sample(self, n):
         selections = np.random.choice(self.count(), min(n, self.count()), replace=False)
-        shifted_selections = sorted([(i+1) % self.size if i >= self.ignored_index() else i for i in selections])
+        shifted_selections = sorted([((i+1) % self.size) if i >= self.ignored_index() else i for i in selections])
         end_selections = sorted([(i+1) % self.size for i in shifted_selections])
         return Transition(
                 self.starts[shifted_selections],
