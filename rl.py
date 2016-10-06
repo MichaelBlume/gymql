@@ -177,7 +177,7 @@ class TrainingEnvironment(object):
             if getattr(self, k, None) is None:
                 raise ValueError('undefined param %s' % k)
             setattr(self, k, v)
-        self.swap_file = h5py.File('%s/%s' % (swap_path, save_name))
+        self.swap_file = h5py.File('%s/%s' % (swap_path, save_name), driver='core')
         self.tables = [TransitionTable(
             self.swap_file, '%d_' % i, self.transitions_to_keep // self.num_steppers)
             for i in range(self.num_steppers)]
