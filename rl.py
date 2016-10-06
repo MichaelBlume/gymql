@@ -243,6 +243,7 @@ class TrainingEnvironment(object):
             Qs_taken))
 
 
+        self.Qs = Q_vals
         self.inputs = inputs
         self.best_action = best_action
         self.actions_taken = actions_taken
