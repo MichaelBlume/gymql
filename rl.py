@@ -153,7 +153,7 @@ class Stepper(object):
         self.transition_table.insert(old_state, action, total_reward)
 
 def count_dead(name, t):
-    zero = tf.equal(t, 0)
+    zero = tf.less_equal(t, 0)
     all_zero = tf.reduce_all(zero, 0)
     zero_as_ones = tf.cast(all_zero, tf.float32)
     tf.scalar_summary('%s_dead' % name, tf.reduce_sum(zero_as_ones))
