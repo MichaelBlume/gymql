@@ -190,6 +190,7 @@ class TrainingEnvironment(object):
                 '%s/%s_summaries' % (self.saves_dir, save_name))
         self.saver = tf.train.Saver()
         self.save_path = '%s/%s.ckpt' % (self.saves_dir, save_name)
+        self.stop_file = '%s/%s.stop' % (self.saves_dir, save_name)
         if self.save_things and os.path.isfile(self.save_path):
             self.saver.restore(self.session, self.save_path)
         else:
@@ -311,3 +312,6 @@ class TrainingEnvironment(object):
             self.step()
             if i % self.train_every == 0:
                 self.train()
+            if i % 128 == 0 and os.path.exists(self.stop_file):
+                os.remove(self.stop_file)
+                break
