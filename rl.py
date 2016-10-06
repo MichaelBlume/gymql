@@ -204,7 +204,8 @@ class TrainingEnvironment(object):
 
     def make_network(self):
         inputs = tf.placeholder(tf.float32, [None, 105, 80, FRAMES_PER_STATE])
-        h_conv1 = conv_layer(inputs, 8, 16, 4)
+        scaled_inputs = inputs / 256.0
+        h_conv1 = conv_layer(scaled_inputs, 8, 16, 4)
         h_conv2 = conv_layer(h_conv1, 4, 32, 2)
         h_conv2_flat = flatten(h_conv2)
         h_fc = fcl(h_conv2_flat, 256)
