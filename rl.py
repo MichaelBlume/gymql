@@ -199,13 +199,8 @@ class TrainingEnvironment(object):
     def sample_transitions(self):
         samples = [table.sample(self.study_repeats * self.train_every) for table in self.tables if
                 table.count() > 0]
-        if not samples:
-            return
-        return Transition(
-                begin=np.concatenate([s.begin for s in samples]),
-                action=np.concatenate([s.action for s in samples]),
-                reward=np.concatenate([s.reward for s in samples]),
-                end=np.concatenate([s.end for s in samples]))
+        if samples:
+            return samples
 
     def make_network(self):
         inputs = tf.placeholder(tf.float32, [None, 105, 80, FRAMES_PER_STATE])
@@ -263,32 +258,26 @@ class TrainingEnvironment(object):
 
     def train(self):
 #        begin, action, reward, end
-        transitions = self.sample_transitions()
-        if not transitions:
+        transitions_set = self.sample_transitions()
+        if not transitions_set:
             return
-        final_Qs = self.session.run(self.max_Q,
-                {self.inputs: transitions.end})
-        total_Qs = [q * self.discount_rate + r
-                for q, r in zip(final_Qs, transitions.reward)]
-        _, summaries, step, predictedQ = self.session.run(
-                [self.opt, self.summaries, self.global_step, self.Qs_taken],
-                {self.inputs: transitions.begin,
-                 self.epsilon_var: self.epsilon,
-                 self.actions_taken: transitions.action,
-                 self.Qs_observed: total_Qs})
-#       print('final')
-#       print(final_Qs[:10])
-#       print('total')
-#       print(total_Qs[:10])
-#       print('predicted')
-#       print(predictedQ[:10])
-        self.summary_writer.add_summary(summaries, step)
+        for transitions in transitions_set:
+            final_Qs = self.session.run(self.max_Q,
+                    {self.inputs: transitions.end})
+            total_Qs = [q * self.discount_rate + r
+                    for q, r in zip(final_Qs, transitions.reward)]
+            _, summaries, step, predictedQ = self.session.run(
+                    [self.opt, self.summaries, self.global_step, self.Qs_taken],
+                    {self.inputs: transitions.begin,
+                     self.epsilon_var: self.epsilon,
+                     self.actions_taken: transitions.action,
+                     self.Qs_observed: total_Qs})
+            self.summary_writer.add_summary(summaries, step)
 
-        # Do some occasional stuff. Do it here because we know what step it is
-        if self.epsilon > 0.1 and step % (self.epsilon_drop_every_frames // self.num_steppers) == 0:
-            self.epsilon -= self.epsilon_drop
-        if self.save_things and step % 10000 == 0:
-            self.save()
+            # Do some occasional stuff. Do it here because we know what step it is
+            self.epsilon = max(1 - (step - 85570) * self.train_every * 0.9 / 1000000, 0.1)
+            if self.save_things and step % 10000 == 0:
+                self.save()
 
     def save(self):
         [t.save() for t in self.tables]
