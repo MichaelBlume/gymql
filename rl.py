@@ -30,7 +30,7 @@ def ident_none(f):
     return (lambda x: x) if f is None else f
 
 def lrelu(t):
-    return tf.maximum(t, 0.1 * t)
+    return tf.maximum(t, 0.01 * t)
 
 def conv_layer(x, window, out_channels, stride, nonlin = lrelu):
     nonlin = ident_none(nonlin)
