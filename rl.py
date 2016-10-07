@@ -160,9 +160,9 @@ def count_dead(name, t):
 
 class TrainingEnvironment(object):
     saves_dir = 'saves'
+    epsilon_floor = .1
+    epsilon_drop_over = 1024 * 1024
     epsilon = 1
-    epsilon_drop = 0.01
-    epsilon_drop_every_frames = 10 * 1000
     save_things = True
     num_steppers = 16
     study_repeats = 8
@@ -277,7 +277,8 @@ class TrainingEnvironment(object):
             self.summary_writer.add_summary(summaries, step)
 
             # Do some occasional stuff. Do it here because we know what step it is
-            self.epsilon = max(1 - (step - 85570) * self.train_every * 0.9 / 1000000, 0.1)
+            epsilon_rate = (1 - self.epsilon_floor) * self.train_every / self.epsilon_drop_over
+            self.epsilon = max(1 - step * epsilon_rate, self.epsilon_floor)
             if self.save_things and step % 10000 == 0:
                 self.save()
 
