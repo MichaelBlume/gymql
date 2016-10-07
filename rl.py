@@ -65,13 +65,14 @@ Transition = namedtuple('Transition', 'begin action reward end')
 
 class TransitionTable(object):
     def __init__(self, f, prefix, size):
-        self.size = size + 1
+        self.logical_size = size
+        self.physical_size = size + 1
 
-        self.starts_var = f.require_dataset('%s_starts' % prefix, (self.size, 105, 80, 4), dtype=np.uint8)
+        self.starts_var = f.require_dataset('%s_starts' % prefix, (self.physical_size, 105, 80, 4), dtype=np.uint8)
         self.starts = np.array(self.starts_var, dtype=np.uint8)
-        self.actions_var = f.require_dataset('%s_actions' % prefix, (self.size,), dtype=np.uint8)
+        self.actions_var = f.require_dataset('%s_actions' % prefix, (self.physical_size,), dtype=np.uint8)
         self.actions = np.array(self.actions_var, dtype=np.uint8)
-        self.rewards_var = f.require_dataset('%s_rewards' % prefix, (self.size,), dtype=np.int8)
+        self.rewards_var = f.require_dataset('%s_rewards' % prefix, (self.physical_size,), dtype=np.int8)
         self.rewards = np.array(self.rewards_var, dtype=np.int8)
 
         self.write_ind_var = f.require_dataset('%s_write_ind' % prefix, (1,),
@@ -90,7 +91,7 @@ class TransitionTable(object):
 
     def count(self):
         if self.full:
-            return self.size - 1
+            return self.logical_size
         else:
             return max(self.write_ind - 1, 0)
 
@@ -108,8 +109,8 @@ class TransitionTable(object):
 
     def sample(self, n):
         selections = np.random.choice(self.count(), min(n, self.count()), replace=False)
-        shifted_selections = [((i+1) % self.size) if i >= self.ignored_index() else i for i in selections]
-        end_selections = [(i+1) % self.size for i in shifted_selections]
+        shifted_selections = [((i+1) % self.physical_size) if i >= self.ignored_index() else i for i in selections]
+        end_selections = [(i+1) % self.physical_size for i in shifted_selections]
         return Transition(
                 self.starts[shifted_selections],
                 self.actions[shifted_selections],
