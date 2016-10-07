@@ -57,6 +57,8 @@ def fcl(x, size, nonlin = lrelu):
     return nonlin(tf.matmul(x, W) + b)
 
 def down_sample(s):
+    # The deepmind paper downsampled in a way that would probably introduce
+    # blurring, and this doesn't. That may matter.
     return np.mean(s[::2,::2,:],axis=2).astype(np.uint8)
 
 Transition = namedtuple('Transition', 'begin action reward end')
