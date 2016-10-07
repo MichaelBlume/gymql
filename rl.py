@@ -13,7 +13,7 @@ FRAMES_PER_STATE=4
 
 def reduce_stdev(t):
     m = tf.reduce_mean(t)
-    return tf.reduce_mean(tf.square(t - m))
+    return tf.sqrt(tf.reduce_mean(tf.square(t - m)))
 
 def explained_variance(t, p):
     return 1 - reduce_stdev(t - p) / reduce_stdev(t)
