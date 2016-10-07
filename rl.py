@@ -66,9 +66,14 @@ Transition = namedtuple('Transition', 'begin action reward end')
 class TransitionTable(object):
     def __init__(self, f, prefix, size):
         self.size = size + 1
-        self.starts = f.require_dataset('%s_starts' % prefix, (self.size, 105, 80, 4), dtype=np.uint8)
-        self.actions = f.require_dataset('%s_actions' % prefix, (self.size,), dtype=np.uint8)
-        self.rewards = f.require_dataset('%s_rewards' % prefix, (self.size,), dtype=np.int8)
+
+        self.starts_var = f.require_dataset('%s_starts' % prefix, (self.size, 105, 80, 4), dtype=np.uint8)
+        self.starts = np.array(self.starts_var, dtype=np.uint8)
+        self.actions_var = f.require_dataset('%s_actions' % prefix, (self.size,), dtype=np.uint8)
+        self.actions = np.array(self.actions_var, dtype=np.uint8)
+        self.rewards_var = f.require_dataset('%s_rewards' % prefix, (self.size,), dtype=np.int8)
+        self.rewards = np.array(self.rewards_var, dtype=np.int8)
+
         self.write_ind_var = f.require_dataset('%s_write_ind' % prefix, (1,),
                 dtype=np.uint32)
         self.full_var = f.require_dataset('%s_full' % prefix, (1,),
@@ -77,6 +82,9 @@ class TransitionTable(object):
         self.full = self.full_var[0]
 
     def save(self):
+        self.starts_var[:,:,:,:] = self.starts
+        self.actions_var[:] = self.actions
+        self.rewards_var[:] = self.rewards
         self.write_ind_var[0] = self.write_ind
         self.full_var[0] = self.full
 
@@ -91,17 +99,17 @@ class TransitionTable(object):
         self.actions[self.write_ind] = action
         self.rewards[self.write_ind] = reward
         self.write_ind += 1
-        if self.write_ind == self.size:
+        if self.write_ind == self.physical_size:
             self.full = True
             self.write_ind = 0
 
     def ignored_index(self):
-        return (self.write_ind - 1) % self.size
+        return (self.write_ind - 1) % self.physical_size
 
     def sample(self, n):
         selections = np.random.choice(self.count(), min(n, self.count()), replace=False)
-        shifted_selections = sorted([((i+1) % self.size) if i >= self.ignored_index() else i for i in selections])
-        end_selections = sorted([(i+1) % self.size for i in shifted_selections])
+        shifted_selections = [((i+1) % self.size) if i >= self.ignored_index() else i for i in selections]
+        end_selections = [(i+1) % self.size for i in shifted_selections]
         return Transition(
                 self.starts[shifted_selections],
                 self.actions[shifted_selections],
@@ -179,7 +187,7 @@ class TrainingEnvironment(object):
             if getattr(self, k, None) is None:
                 raise ValueError('undefined param %s' % k)
             setattr(self, k, v)
-        self.swap_file = h5py.File('%s/%s' % (swap_path, save_name), driver='core')
+        self.swap_file = h5py.File('%s/%s' % (swap_path, save_name))
         self.tables = [TransitionTable(
             self.swap_file, '%d_' % i, self.transitions_to_keep // self.num_steppers)
             for i in range(self.num_steppers)]
