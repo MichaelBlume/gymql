@@ -13,6 +13,8 @@ from PIL import Image
 from itertools import cycle
 
 FRAMES_PER_STATE=4
+FRAME_WIDTH = 84
+FRAME_HEIGHT = 110
 
 def reduce_stdev(t):
     m = tf.reduce_mean(t)
@@ -65,9 +67,10 @@ def fcl(x, size, vlist, nonlin = lrelu):
 
 def down_sample(s):
     im = Image.fromarray(s)
-    im.thumbnail((84, 110))
+    im.thumbnail((FRAME_WIDTH, FRAME_HEIGHT))
     bw = im.convert('L')
-    return np.array(bw.getdata(), dtype=np.uint8).reshape([110, 84])
+    arr = np.array(bw.getdata(), dtype=np.uint8)
+    return arr.reshape([FRAME_HEIGHT, FRAME_WIDTH])
 
 QNetwork = namedtuple('QNetwork', 'frames qvals vlist')
 Transition = namedtuple('Transition', 'begin action reward terminal end')
@@ -80,7 +83,7 @@ def count_dead(name, t):
 
 def make_Qnetwork(num_outputs, count_dead_summaries=False):
     vlist = []
-    inputs = tf.placeholder(tf.float32, [None, 110, 84, FRAMES_PER_STATE])
+    inputs = tf.placeholder(tf.float32, [None, FRAME_HEIGHT, FRAME_WIDTH, FRAMES_PER_STATE])
     scaled_inputs = inputs / 256.0
     h_conv1 = conv_layer(scaled_inputs, 8, 32, 4, vlist)
     h_conv2 = conv_layer(h_conv1, 4, 64, 2, vlist)
@@ -165,7 +168,7 @@ class TransitionTable(object):
         self.logical_size = size
         self.physical_size = size + 1
 
-        self.starts_var = f.require_dataset('%s_starts' % prefix, (self.physical_size, 110, 84, 4), dtype=np.uint8)
+        self.starts_var = f.require_dataset('%s_starts' % prefix, (self.physical_size, FRAME_HEIGHT, FRAME_WIDTH, 4), dtype=np.uint8)
         self.starts = np.array(self.starts_var, dtype=np.uint8)
         self.actions_var = f.require_dataset('%s_actions' % prefix, (self.physical_size,), dtype=np.uint8)
         self.actions = np.array(self.actions_var, dtype=np.uint8)
@@ -220,7 +223,8 @@ class TransitionTable(object):
                 self.terminal[shifted_selections],
                 self.starts[end_selections])
 
-blank_frames = [np.empty([110, 84], dtype=np.uint8) for i in range(FRAMES_PER_STATE - 1)]
+blank_frames = [np.empty([FRAME_HEIGHT, FRAME_WIDTH], dtype=np.uint8)
+        for i in range(FRAMES_PER_STATE - 1)]
 for b in blank_frames:
     b.fill(0)
          
