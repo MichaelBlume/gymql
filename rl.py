@@ -17,8 +17,7 @@ FRAME_WIDTH = 84
 FRAME_HEIGHT = 110
 
 def reduce_stdev(t):
-    m = tf.reduce_mean(t)
-    return tf.sqrt(tf.reduce_mean(tf.square(t - m)))
+    return tf.nn.moments(t)[1]
 
 def explained_variance(t, p):
     return 1 - reduce_stdev(t - p) / reduce_stdev(t)
@@ -46,16 +45,6 @@ def conv_layer(x, window, out_channels, stride, vlist, nonlin = lrelu):
     vlist.append(b_conv)
     return nonlin(
             tf.nn.conv2d(x, W_conv, strides=[1, stride, stride, 1], padding='SAME') + b_conv)
-
-def product(i):
-    ret = 1
-    for n in i: 
-        ret *= n
-    return ret
-    
-def flatten(x):
-    dim = product(d.value for d in x.get_shape()[1:])
-    return tf.reshape(x, [-1, dim])
 
 def fcl(x, size, vlist, nonlin = lrelu):
     nonlin = ident_none(nonlin)
@@ -88,7 +77,7 @@ def make_Qnetwork(num_outputs, count_dead_summaries=False):
     h_conv1 = conv_layer(scaled_inputs, 8, 32, 4, vlist)
     h_conv2 = conv_layer(h_conv1, 4, 64, 2, vlist)
     h_conv3 = conv_layer(h_conv2, 3, 64, 1, vlist)
-    h_conv3_flat = flatten(h_conv3)
+    h_conv3_flat = tf.contrib.layers.flatten(h_conv3)
     h_fc = fcl(h_conv3_flat, 512, vlist)
     Q_vals = fcl(h_fc, num_outputs, vlist, nonlin=None)
 
@@ -234,13 +223,6 @@ def reset_env(env):
 def stack_frames(frames):
     return np.stack(frames, axis=2)
 
-def sgn(x):
-    if x < 0:
-        return -1
-    if x > 0:
-        return 1
-    return 0
-
 class Stepper(object):
     def __init__(self, game, frames_same, table=None):
         self.env = gym.make(game)
@@ -261,7 +243,7 @@ class Stepper(object):
             frame, reward, done, info = self.env.step(action)
             if render:
                 self.env.render()
-            total_reward += sgn(reward)
+            total_reward += np.sign(reward)
             if done: 
                 break
             self.frames.append(down_sample(frame))
