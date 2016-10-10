@@ -139,6 +139,8 @@ def sgn(x):
 class Stepper(object):
     def __init__(self, game, frames_same, table):
         self.env = gym.make(game)
+        # ARGH
+        self.env.frameskip = 1
         self.frames = reset_env(self.env)
         self.last_state = stack_frames(self.frames)
         self.frames_same = frames_same
