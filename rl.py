@@ -17,7 +17,7 @@ FRAME_WIDTH = 84
 FRAME_HEIGHT = 110
 
 def reduce_stdev(t):
-    return tf.nn.moments(t)[1]
+    return tf.nn.moments(t, axes=[0])[1]
 
 def explained_variance(t, p):
     return 1 - reduce_stdev(t - p) / reduce_stdev(t)
