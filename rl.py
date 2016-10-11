@@ -15,6 +15,8 @@ from itertools import cycle
 FRAMES_PER_STATE=4
 FRAME_WIDTH = 84
 FRAME_HEIGHT = 110
+RAW_FRAME_WIDTH = 160
+RAW_FRAME_HEIGHT = 210
 
 def reduce_stdev(t):
     return tf.nn.moments(t, axes=[0])[1]
@@ -212,16 +214,13 @@ class TransitionTable(object):
                 self.terminal[shifted_selections],
                 self.starts[end_selections])
 
-blank_frames = [np.empty([FRAME_HEIGHT, FRAME_WIDTH], dtype=np.uint8)
+blank_frames = [np.empty([RAW_FRAME_HEIGHT, RAW_FRAME_WIDTH, 3], dtype=np.uint8)
         for i in range(FRAMES_PER_STATE - 1)]
 for b in blank_frames:
     b.fill(0)
          
 def reset_env(env):
-    return blank_frames + [down_sample(env.reset())]
-
-def stack_frames(frames):
-    return np.stack(frames, axis=2)
+    return blank_frames + [env.reset()]
 
 class Stepper(object):
     def __init__(self, game, frames_same, table=None):
@@ -229,7 +228,6 @@ class Stepper(object):
         # ARGH
         self.env.frameskip = 1
         self.frames = reset_env(self.env)
-        self.last_state = stack_frames(self.frames)
         self.frames_same = frames_same
         self.transition_table = table
 
@@ -246,12 +244,12 @@ class Stepper(object):
             total_reward += np.sign(reward)
             if done: 
                 break
-            self.frames.append(down_sample(frame))
+            self.frames.append(frame)
         if done:
             self.frames = reset_env(self.env)
         else:
             self.frames[:-FRAMES_PER_STATE] = []
-        self.last_state = stack_frames(self.frames)
+
         if self.transition_table is not None:
             self.transition_table.insert(old_state, action, total_reward, done)
 
@@ -288,6 +286,8 @@ class TrainingEnvironment(object):
             global_step = tf.Variable(0, name='global_step', trainable=False)
             self.qnetwork = QNetworkPair(self.session, self.discount_rate, num_outputs,
                     global_step)
+            self.make_resize_graph()
+        self.resize_stepper_states()
         self.summary_writer = tf.train.SummaryWriter(
                 '%s/%s_summaries' % (self.saves_dir, save_name))
         self.saver = tf.train.Saver()
@@ -300,6 +300,27 @@ class TrainingEnvironment(object):
             self.session.run(tf.initialize_all_variables())
             self.qnetwork.update_targets()
         self.frames_seen = 0
+
+    def make_resize_graph(self):
+        self.images_raw = tf.placeholder(tf.uint8,
+                [self.num_steppers, FRAMES_PER_STATE,
+                 RAW_FRAME_HEIGHT, RAW_FRAME_WIDTH, 3])
+        images_gray = tf.image.rgb_to_grayscale(self.images_raw)
+        images_flatter = tf.reshape(images_gray, [self.num_steppers * FRAMES_PER_STATE,
+            RAW_FRAME_HEIGHT, RAW_FRAME_WIDTH, 1])
+        images_small = tf.image.resize_images(images_flatter,
+                [FRAME_HEIGHT, FRAME_WIDTH])
+        images_cast = tf.cast(images_small, tf.uint8)
+        small_image_sets = tf.reshape(images_cast,
+                [self.num_steppers, FRAMES_PER_STATE, FRAME_HEIGHT, FRAME_WIDTH])
+        self.states_ret = tf.transpose(small_image_sets, [0, 2, 3, 1])
+
+    def resize_stepper_states(self):
+        big_images = [s.frames for s in self.steppers]
+        new_states = self.session.run(self.states_ret,
+                {self.images_raw: big_images})
+        for stepper, state in zip(self.steppers, new_states):
+            stepper.last_state = state
 
     def sample_transitions(self):
         samples = [table.sample(self.study_repeats * self.train_every) for table in self.tables if
@@ -340,6 +361,7 @@ class TrainingEnvironment(object):
             actions = self.qnetwork.choose_actions(states)
             for s, a in zip(determ_steppers, actions):
                 s.step(a)
+        self.resize_stepper_states()
 
     def run(self):
         total_saved = sum(t.count() for t in self.tables)
