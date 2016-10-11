@@ -130,7 +130,7 @@ class QNetworkPair(object):
         # Error clipping
         loss = tf.reduce_sum(tf.sqrt(tf.square(Q_error) + 1))
         tf.scalar_summary('loss', tf.reduce_mean(squared_error))
-        self.opt = tf.train.AdamOptimizer().minimize(
+        self.opt = tf.train.RMSPropOptimizer(0.00025, momentum=0.95, epsilon=0.01).minimize(
                 loss, global_step=global_step)
 
         self.summaries = tf.merge_all_summaries()
