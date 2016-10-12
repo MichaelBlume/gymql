@@ -266,7 +266,6 @@ class TrainingEnvironment(object):
     frames_start = 50 * 1024
     update_target_every = 10 * 1024
     total_training_steps = 10 * 1024 * 1024
-    discount_rate = 0.96
 
     def __init__(self, game, save_name, swap_path, **kwargs):
         # you can set arbitrary hyperparameters
@@ -284,7 +283,11 @@ class TrainingEnvironment(object):
         self.session = tf.Session()
         with self.session:
             global_step = tf.Variable(0, name='global_step', trainable=False)
-            self.qnetwork = QNetworkPair(self.session, self.discount_rate, num_outputs,
+            discount_rate = tf.minimum(0.96, 1.0 -
+                    tf.train.exponential_decay(1.0,
+                global_step, 2 * 1024 * 1024 // self.frames_per_training, 0.04))
+            tf.scalar_summary('discount_rate', discount_rate)
+            self.qnetwork = QNetworkPair(self.session, discount_rate, num_outputs,
                     global_step)
             self.make_resize_graph()
         self.resize_stepper_states()
