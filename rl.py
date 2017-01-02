@@ -11,7 +11,7 @@ import os
 import h5py
 from itertools import cycle
 
-FRAMES_PER_STATE=4
+FRAMES_PER_STATE = 4
 FRAME_WIDTH = 84
 FRAME_HEIGHT = 110
 RAW_FRAME_WIDTH = 160
