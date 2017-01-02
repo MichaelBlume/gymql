@@ -9,7 +9,6 @@ from collections import namedtuple
 import random
 import os
 import h5py
-from PIL import Image
 from itertools import cycle
 
 FRAMES_PER_STATE=4
@@ -55,13 +54,6 @@ def fcl(x, size, vlist, nonlin = lrelu):
     vlist.append(W)
     vlist.append(b)
     return nonlin(tf.matmul(x, W) + b)
-
-def down_sample(s):
-    im = Image.fromarray(s)
-    im.thumbnail((FRAME_WIDTH, FRAME_HEIGHT))
-    bw = im.convert('L')
-    arr = np.array(bw.getdata(), dtype=np.uint8)
-    return arr.reshape([FRAME_HEIGHT, FRAME_WIDTH])
 
 QNetwork = namedtuple('QNetwork', 'frames qvals vlist')
 Transition = namedtuple('Transition', 'begin action reward terminal end')
