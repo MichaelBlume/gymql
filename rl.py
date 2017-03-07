@@ -73,7 +73,12 @@ def make_Qnetwork(num_outputs, count_dead_summaries=False):
     h_conv3 = conv_layer(h_conv2, 3, 64, 1, vlist)
     h_conv3_flat = tf.contrib.layers.flatten(h_conv3)
     h_fc = fcl(h_conv3_flat, 512, vlist)
-    Q_vals = fcl(h_fc, num_outputs, vlist, nonlin=None)
+
+    Q_vars = fcl(h_fc, num_outputs, vlist, nonlin=None)
+    Q_est = fcl(h_fc, 1, vlist, nonlin=None)
+    max_var = tf.reduce_max(Q_vars, reduction_indices=1)
+    Q_vals = Q_vars + Q_est - max_var
+
 
     if count_dead_summaries:
         count_dead('conv1', h_conv1)
